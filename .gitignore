@@ -76,3 +76,20 @@ target/
 # for macOS
 .DS_Store
 ._.DS_Store
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.pem
+*.key
+
+# Common secret files
+.env
+.env.local
+.env.production
+*.p12
+*.pfx
+config.json
+secrets.json
