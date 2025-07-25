@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data files
+*.pkl
+*.csv
+*.json
+
+# Visualization outputs (optional - you may want to track these)
+*.png
+*.jpg
+*.gif
+
+# USDZ models (track these for visualization)
+# *.usdz
+
+# Virtual environment
+.venv/
+.env
+
+# IDE files
+.vscode/
+.idea/
