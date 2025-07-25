@@ -1,0 +1,4 @@
+numpy>=1.26.0
+matplotlib>=3.10.0
+jupyter>=1.1.0
+usd-core>=23.11  # For USD/USDZ support (optional)
