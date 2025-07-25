@@ -1,41 +1,41 @@
 """
-Cubic Graph Search with USDZ Visualization
-==========================================
+Cubic Graph Search with AIMA Algorithms
+=======================================
 
-A 3D cube mesh graph implementation using AIMA search algorithms with USDZ visualization.
-This project demonstrates graph search algorithms on a cubic lattice structure where
-each node is color-coded by spatial position for easy navigation and algorithm visualization.
+A 3D cube mesh graph implementation using AIMA search algorithms.
+Optional web visualization available with --openURL flag.
+
+Usage: 
+    python cubic_graph_search.py              # Core analysis only
+    python cubic_graph_search.py --openURL    # Analysis + web visualization
 
 Author: Jesse B.
-Course: Stanford AI Fundamentals
+Course: Stanford AI Fundamentals  
 Date: July 2025
 """
 
 import sys
 import os
+import argparse
 import numpy as np
 from typing import List, Tuple, Dict, Set, Optional
 import json
 from pathlib import Path
 
-# Simple fix: Add AIMA-python root to path
+# Simple path setup for AIMA modules
 aima_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 sys.path.insert(0, aima_root)
 
 # Import AIMA modules
 from search import Problem, breadth_first_graph_search, depth_first_graph_search, astar_search
-from search import breadth_first_graph_search, uniform_cost_search
+from search import best_first_graph_search, uniform_cost_search
 from utils import PriorityQueue
 
+# [Keep ALL your existing classes exactly as they are - no changes needed]
+# CubicNode, CubicMesh, CubicGraphProblem, SearchResultAnalyzer
+
 class CubicNode:
-    """
-    Represents a node in the 3D cubic mesh.
-    
-    Each node has:
-    - 3D coordinates (x, y, z)
-    - Color coding based on spatial position
-    - Connections to adjacent nodes
-    """
+    """Represents a node in the 3D cubic mesh."""
     
     def __init__(self, x: int, y: int, z: int, cube_size: int = 5):
         self.x, self.y, self.z = x, y, z
@@ -45,21 +45,9 @@ class CubicNode:
         self.neighbors: Set[Tuple[int, int, int]] = set()
         
     def _calculate_color(self) -> str:
-        """
-        Calculate color based on position in cube for spatial orientation.
-        
-        Color coding system:
-        - Red: Front face (z = max)
-        - Blue: Back face (z = 0)
-        - Green: Right face (x = max)
-        - Yellow: Left face (x = 0)
-        - White: Top face (y = max)
-        - Orange: Bottom face (y = 0)
-        - Gray: Interior nodes
-        """
+        """Calculate color based on position in cube for spatial orientation."""
         colors = []
         
-        # Check if node is on any face
         if self.x == 0:
             colors.append("Yellow")  # Left face
         elif self.x == self.cube_size - 1:
@@ -75,7 +63,6 @@ class CubicNode:
         elif self.z == self.cube_size - 1:
             colors.append("Red")     # Front face
         
-        # Return primary color or gray for interior
         if len(colors) == 0:
             return "Gray"  # Interior node
         elif len(colors) == 1:
@@ -89,14 +76,9 @@ class CubicNode:
     
     def __str__(self):
         return f"Node({self.x},{self.y},{self.z})-{self.color}"
-    
-    def __repr__(self):
-        return self.__str__()
 
 class CubicMesh:
-    """
-    3D cubic mesh graph structure with spatial indexing and neighbor relationships.
-    """
+    """3D cubic mesh graph structure."""
     
     def __init__(self, size: int = 5):
         self.size = size
@@ -115,7 +97,7 @@ class CubicMesh:
                     node = CubicNode(x, y, z, self.size)
                     self.nodes[(x, y, z)] = node
         
-        # Create edges (6-connectivity: up, down, left, right, front, back)
+        # Create edges (6-connectivity)
         directions = [(1,0,0), (-1,0,0), (0,1,0), (0,-1,0), (0,0,1), (0,0,-1)]
         
         for pos, node in self.nodes.items():
@@ -123,11 +105,7 @@ class CubicMesh:
             for dx, dy, dz in directions:
                 nx, ny, nz = x + dx, y + dy, z + dz
                 
-                # Check bounds
-                if (0 <= nx < self.size and 
-                    0 <= ny < self.size and 
-                    0 <= nz < self.size):
-                    
+                if (0 <= nx < self.size and 0 <= ny < self.size and 0 <= nz < self.size):
                     neighbor_pos = (nx, ny, nz)
                     node.add_neighbor(neighbor_pos)
                     self.edges.append((pos, neighbor_pos))
@@ -142,28 +120,11 @@ class CubicMesh:
         """Get neighbor positions for a given node."""
         node = self.get_node(position)
         return list(node.neighbors) if node else []
-    
-    def distance(self, pos1: Tuple[int, int, int], pos2: Tuple[int, int, int]) -> float:
-        """Calculate Euclidean distance between two positions."""
-        return np.sqrt(sum((a - b) ** 2 for a, b in zip(pos1, pos2)))
 
 class CubicGraphProblem(Problem):
-    """
-    AIMA Problem formulation for searching through the cubic mesh.
+    """AIMA Problem formulation for searching through the cubic mesh."""
     
-    This adapts our cube mesh to work with AIMA search algorithms.
-    """
-    
-    def __init__(self, mesh: CubicMesh, initial: Tuple[int, int, int], 
-                 goal: Tuple[int, int, int]):
-        """
-        Initialize the search problem.
-        
-        Args:
-            mesh: The cubic mesh graph
-            initial: Starting position (x, y, z)
-            goal: Target position (x, y, z)
-        """
+    def __init__(self, mesh: CubicMesh, initial: Tuple[int, int, int], goal: Tuple[int, int, int]):
         super().__init__(initial, goal)
         self.mesh = mesh
         self.goal_position = goal
@@ -173,13 +134,12 @@ class CubicGraphProblem(Problem):
         print(f"Goal node: {mesh.get_node(goal)}")
     
     def actions(self, state: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
-        """Return available actions (neighboring positions) from current state."""
+        """Return available actions from current state."""
         return self.mesh.get_neighbors(state)
     
-    def result(self, state: Tuple[int, int, int], 
-               action: Tuple[int, int, int]) -> Tuple[int, int, int]:
-        """Return the result of taking an action from a state."""
-        return action  # Action is the destination position
+    def result(self, state: Tuple[int, int, int], action: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        """Return the result of taking an action."""
+        return action
     
     def goal_test(self, state: Tuple[int, int, int]) -> bool:
         """Test if we've reached the goal."""
@@ -187,8 +147,8 @@ class CubicGraphProblem(Problem):
     
     def path_cost(self, c: float, state1: Tuple[int, int, int], 
                   action: Tuple[int, int, int], state2: Tuple[int, int, int]) -> float:
-        """Calculate cost of path (uniform cost for adjacent moves)."""
-        return c + 1  # Each move costs 1
+        """Calculate path cost (uniform cost for adjacent moves)."""
+        return c + 1
     
     def h(self, node) -> float:
         """Heuristic function for A* search (Manhattan distance)."""
@@ -196,9 +156,7 @@ class CubicGraphProblem(Problem):
         return sum(abs(a - b) for a, b in zip(state, self.goal_position))
 
 class SearchResultAnalyzer:
-    """
-    Analyzes and compares results from different search algorithms.
-    """
+    """Analyzes and compares results from different search algorithms."""
     
     def __init__(self, mesh: CubicMesh):
         self.mesh = mesh
@@ -209,7 +167,6 @@ class SearchResultAnalyzer:
         print(f"\n--- Running {algorithm_name} ---")
         
         try:
-            # Run the algorithm
             solution = algorithm_func(problem)
             
             if solution:
@@ -230,17 +187,11 @@ class SearchResultAnalyzer:
                 print(f"  Colors: {' -> '.join(result['path_colors'][:5])}{'...' if len(result['path_colors']) > 5 else ''}")
                 
             else:
-                result = {
-                    'success': False,
-                    'error': 'No solution found'
-                }
+                result = {'success': False, 'error': 'No solution found'}
                 print("✗ No solution found")
                 
         except Exception as e:
-            result = {
-                'success': False,
-                'error': str(e)
-            }
+            result = {'success': False, 'error': str(e)}
             print(f"✗ Error: {e}")
         
         self.results[algorithm_name] = result
@@ -259,7 +210,6 @@ class SearchResultAnalyzer:
                 comparison['successful_algorithms'].append(name)
                 comparison['path_lengths'][name] = result['path_length']
         
-        # Rank by path length (shorter = better)
         if comparison['path_lengths']:
             comparison['efficiency_ranking'] = sorted(
                 comparison['path_lengths'].items(), 
@@ -270,16 +220,8 @@ class SearchResultAnalyzer:
 
 def generate_usdz_model(mesh: CubicMesh, search_results: Dict[str, Dict], 
                        output_file: str = "cubic_search_visualization.usdz"):
-    """
-    Generate USDZ 3D model showing the cube mesh and search paths.
-    
-    Note: This is a simplified representation. In practice, you'd use
-    libraries like USD-Python or export to formats that can be converted to USDZ.
-    """
-    print(f"\n--- Generating USDZ Visualization ---")
-    
-    # For this example, we'll create a JSON representation that describes
-    # the 3D model structure. In practice, you'd use USD tools.
+    """Generate JSON data for 3D model visualization."""
+    print(f"\n--- Generating Visualization Data ---")
     
     model_data = {
         "cube_size": mesh.size,
@@ -305,7 +247,7 @@ def generate_usdz_model(mesh: CubicMesh, search_results: Dict[str, Dict],
             "neighbors": list(node.neighbors)
         }
     
-    # Add edge data
+    # Add edge data  
     for edge in mesh.edges:
         model_data["edges"].append([edge[0], edge[1]])
     
@@ -318,18 +260,124 @@ def generate_usdz_model(mesh: CubicMesh, search_results: Dict[str, Dict],
                 "length": result['path_length']
             }
     
-    # Save as JSON (would be converted to USDZ in production)
-    with open(output_file.replace('.usdz', '.json'), 'w') as f:
+    # Save JSON data
+    output_path = output_file.replace('.usdz', '.json')
+    with open(output_path, 'w') as f:
         json.dump(model_data, f, indent=2)
     
-    print(f"✓ Model data saved to {output_file.replace('.usdz', '.json')}")
-    print("  (In production, this would be converted to USDZ format)")
-    
+    print(f"✓ Visualization data saved to {output_path}")
     return model_data
 
-def main():
+def generate_report(mesh: CubicMesh, results: Dict, comparison: Dict):
+    """Generate detailed analysis report."""
+    
+    report_content = f"""# Cubic Graph Search Algorithm Analysis Report
+
+## Experiment Overview
+- **Cube Size**: {mesh.size}x{mesh.size}x{mesh.size} ({len(mesh.nodes)} nodes)
+- **Search Space**: 3D lattice with 6-connectivity
+- **Start Position**: (0,0,0) - Yellow-Orange-Blue corner
+- **Goal Position**: ({mesh.size-1},{mesh.size-1},{mesh.size-1}) - Green-White-Red corner
+
+## Algorithm Performance Comparison
+
+"""
+    
+    for alg_name, result in results.items():
+        if result['success']:
+            report_content += f"""### {alg_name}
+- **Status**: ✓ Success
+- **Path Length**: {result['path_length']} steps
+- **Path Cost**: {result['cost']}
+- **Color Sequence**: {' → '.join(result['path_colors'][:10])}{'...' if len(result['path_colors']) > 10 else ''}
+
+"""
+        else:
+            report_content += f"""### {alg_name}
+- **Status**: ✗ Failed
+- **Error**: {result.get('error', 'Unknown error')}
+
+"""
+    
+    report_content += f"""## Key Findings
+
+1. **Most Efficient Algorithm**: {comparison['efficiency_ranking'][0][0] if comparison['efficiency_ranking'] else 'None'}
+2. **Optimal Path Length**: {comparison['efficiency_ranking'][0][1] if comparison['efficiency_ranking'] else 'N/A'} steps
+3. **Success Rate**: {len(comparison['successful_algorithms'])}/{len(results)} algorithms found solutions
+
+---
+Generated: Stanford AI Class Preparation Project
+"""
+    
+    # Save report
+    os.makedirs('reports', exist_ok=True)
+    with open('reports/cubic_search_analysis.md', 'w') as f:
+        f.write(report_content)
+    
+    print("✓ Report saved to reports/cubic_search_analysis.md")
+
+def launch_web_visualization():
     """
-    Main execution function demonstrating cubic graph search algorithms.
+    OPTIONAL: Launch web visualization (requires --openURL flag)
+    Only imports web-related dependencies when actually used.
+    """
+    try:
+        import subprocess
+        import webbrowser
+        import time
+        import threading
+    except ImportError as e:
+        print(f"❌ Web visualization dependencies missing: {e}")
+        print("   Install missing packages or run without --openURL flag")
+        return False
+    
+    print("\n7. LAUNCHING WEB VISUALIZATION")
+    
+    # Check if HTML file exists
+    html_file = Path("visualize_3d.html")
+    if not html_file.exists():
+        print("❌ visualize_3d.html not found. Please ensure it's in the project directory.")
+        return False
+    
+    try:
+        print("🚀 Starting local HTTP server on port 8000...")
+        # Start server in background, suppress output
+        server_process = subprocess.Popen(
+            ['python', '-m', 'http.server', '8000'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        
+        # Give server time to start
+        time.sleep(2)
+        
+        # Open browser
+        url = "http://localhost:8000/visualize_3d.html"
+        print(f"🌐 Opening visualization: {url}")
+        webbrowser.open(url)
+        
+        print("✅ Web visualization launched!")
+        print("   - Mouse: rotate | Scroll: zoom | Buttons: switch algorithms")
+        
+        # Auto-shutdown after 5 minutes
+        def shutdown_server():
+            time.sleep(300)  # 5 minutes
+            server_process.terminate()
+            print("\n🛑 Web server auto-shutdown")
+        
+        shutdown_thread = threading.Thread(target=shutdown_server, daemon=True)
+        shutdown_thread.start()
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to launch web visualization: {e}")
+        return False
+
+def run_core_analysis():
+    """
+    Core algorithm analysis - always runs regardless of flags.
+    This is the main functionality that works everywhere.
     """
     print("="*60)
     print("CUBIC GRAPH SEARCH WITH AIMA ALGORITHMS")
@@ -338,20 +386,18 @@ def main():
     
     # 1. Create the cubic mesh
     print("\n1. BUILDING CUBIC MESH")
-    mesh = CubicMesh(size=5)  # 5x5x5 cube
+    mesh = CubicMesh(size=5)
     
     # 2. Define search problem
     print("\n2. DEFINING SEARCH PROBLEM")
-    start_pos = (0, 0, 0)  # Bottom-left-back corner (Yellow-Orange-Blue)
-    goal_pos = (4, 4, 4)   # Top-right-front corner (Green-White-Red)
-    
+    start_pos = (0, 0, 0)  # Yellow-Orange-Blue corner
+    goal_pos = (4, 4, 4)   # Green-White-Red corner
     problem = CubicGraphProblem(mesh, start_pos, goal_pos)
     
-    # 3. Run different search algorithms
+    # 3. Run search algorithms
     print("\n3. RUNNING SEARCH ALGORITHMS")
     analyzer = SearchResultAnalyzer(mesh)
     
-    # Test various AIMA search algorithms
     algorithms = {
         'Breadth-First Search': breadth_first_graph_search,
         'Depth-First Search': depth_first_graph_search,
@@ -371,92 +417,43 @@ def main():
     for rank, (alg, length) in enumerate(comparison['efficiency_ranking'], 1):
         print(f"  {rank}. {alg}: {length} steps")
     
-    # 5. Generate visualization
-    print("\n5. GENERATING VISUALIZATION")
+    # 5. Generate visualization data
+    print("\n5. GENERATING VISUALIZATION DATA")
     model_data = generate_usdz_model(mesh, analyzer.results)
     
     # 6. Generate report
     print("\n6. GENERATING REPORT")
     generate_report(mesh, analyzer.results, comparison)
     
+    return mesh, analyzer.results, comparison
+
+def main():
+    """
+    Main function with simple argument parsing.
+    Core analysis always runs. Web visualization only with --openURL.
+    """
+    # Simple argument parsing - no external dependencies
+    open_url = '--openURL' in sys.argv
+    
+    # Always run core analysis
+    mesh, results, comparison = run_core_analysis()
+    
+    # Optionally launch web visualization
+    if open_url:
+        launch_web_visualization()
+    else:
+        print("\n💡 TIP: Use --openURL flag to launch web visualization")
+    
     print("\n" + "="*60)
     print("EXPERIMENT COMPLETE!")
-    print("Check the 'reports' directory for detailed analysis.")
+    print("✓ Analysis report: reports/cubic_search_analysis.md")
+    print("✓ Visualization data: cubic_search_visualization.json")
+    if open_url:
+        print("✓ Web visualization: should open automatically")
     print("="*60)
-
-def generate_report(mesh: CubicMesh, results: Dict, comparison: Dict):
-    """Generate a detailed analysis report."""
     
-    report_content = f"""
-# Cubic Graph Search Algorithm Analysis Report
-
-## Experiment Overview
-- **Cube Size**: {mesh.size}x{mesh.size}x{mesh.size} ({len(mesh.nodes)} nodes)
-- **Search Space**: 3D lattice with 6-connectivity
-- **Start Position**: (0,0,0) - Yellow-Orange-Blue corner
-- **Goal Position**: ({mesh.size-1},{mesh.size-1},{mesh.size-1}) - Green-White-Red corner
-
-## Algorithm Performance Comparison
-
-"""
-    
-    for alg_name, result in results.items():
-        if result['success']:
-            report_content += f"""
-### {alg_name}
-- **Status**: ✓ Success
-- **Path Length**: {result['path_length']} steps
-- **Path Cost**: {result['cost']}
-- **Color Sequence**: {' → '.join(result['path_colors'][:10])}{'...' if len(result['path_colors']) > 10 else ''}
-
-"""
-        else:
-            report_content += f"""
-### {alg_name}
-- **Status**: ✗ Failed
-- **Error**: {result.get('error', 'Unknown error')}
-
-"""
-    
-    report_content += f"""
-## Key Findings
-
-1. **Most Efficient Algorithm**: {comparison['efficiency_ranking'][0][0] if comparison['efficiency_ranking'] else 'None'}
-2. **Optimal Path Length**: {comparison['efficiency_ranking'][0][1] if comparison['efficiency_ranking'] else 'N/A'} steps
-3. **Success Rate**: {len(comparison['successful_algorithms'])}/{len(results)} algorithms found solutions
-
-## Color-Coded Navigation System
-
-The cubic mesh uses a spatial color coding system:
-- **Red**: Front face (z=max) - "approaching" 
-- **Blue**: Back face (z=0) - "receding"
-- **Green**: Right face (x=max) - "rightward"
-- **Yellow**: Left face (x=0) - "leftward" 
-- **White**: Top face (y=max) - "upward"
-- **Orange**: Bottom face (y=0) - "downward"
-- **Gray**: Interior nodes - "internal"
-
-This system enables intuitive spatial reasoning about algorithm behavior and path characteristics.
-
-## Applications and Extensions
-
-This framework can be extended for:
-1. **Pathfinding in 3D environments**
-2. **Robot navigation in structured spaces**
-3. **Network routing optimization**
-4. **Game AI spatial reasoning**
-5. **3D maze solving algorithms**
-
----
-Generated: {os.path.basename(__file__)} - Stanford AI Class Preparation
-"""
-    
-    # Save report
-    os.makedirs('reports', exist_ok=True)
-    with open('reports/cubic_search_analysis.md', 'w') as f:
-        f.write(report_content)
-    
-    print("✓ Report saved to reports/cubic_search_analysis.md")
+    return True
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)
