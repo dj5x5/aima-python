@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cubic Graph Search 3D Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial; background: #000; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; z-index: 1000; }
+        #controls { position: absolute; top: 10px; right: 10px; color: white; z-index: 1000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Cubic Graph Search Visualization</h3>
+        <p>Mouse: Rotate | Scroll: Zoom</p>
+        <div id="pathInfo"></div>
+    </div>
+    <div id="controls">
+        <button onclick="showAlgorithmPath('Breadth-First Search')">BFS</button>
+        <button onclick="showAlgorithmPath('A* Search')">A*</button>
+        <button onclick="showAlgorithmPath('Uniform Cost Search')">UCS</button>
+        <button onclick="showAlgorithmPath('Depth-First Search')">DFS</button>
+        <button onclick="showAllNodes()">All Nodes</button>
+    </div>
+    
+    <script>
+        // Load and visualize the JSON data
+        fetch('cubic_search_visualization.json')
+            .then(response => response.json())
+            .then(data => createVisualization(data));
+            
+        let scene, camera, renderer, currentPathMeshes = [];
+        
+        function createVisualization(data) {
+            // Basic Three.js setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x222222);
+            document.body.appendChild(renderer.domElement);
+            
+            // Create cube nodes
+            const nodeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const colorMap = {
+                'Red': 0xff0000, 'Blue': 0x0000ff, 'Green': 0x00ff00,
+                'Yellow': 0xffff00, 'White': 0xffffff, 'Orange': 0xff8800,
+                'Gray': 0x888888
+            };
+            
+            // Add nodes
+            Object.entries(data.nodes).forEach(([posStr, nodeData]) => {
+                const [x, y, z] = nodeData.position;
+                const color = nodeData.color.split('-')[0]; // Use first color for multi-colored nodes
+                
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: colorMap[color] || 0x888888,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const nodeMesh = new THREE.Mesh(nodeGeometry, material);
+                nodeMesh.position.set(x, y, z);
+                scene.add(nodeMesh);
+            });
+            
+            // Add edges
+            const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.2 });
+            data.edges.forEach(edge => {
+                const [pos1, pos2] = edge;
+                const geometry = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(...pos1),
+                    new THREE.Vector3(...pos2)
+                ]);
+                const line = new THREE.Line(geometry, edgeMaterial);
+                scene.add(line);
+            });
+            
+            // Position camera
+            camera.position.set(8, 8, 8);
+            camera.lookAt(2, 2, 2);
+            
+            // Add mouse controls
+            addControls();
+            
+            // Animation loop
+            animate();
+            
+            // Show BFS path by default
+            setTimeout(() => showAlgorithmPath('Breadth-First Search'), 1000);
+        }
+        
+        function showAlgorithmPath(algorithmName) {
+            // Clear previous path
+            currentPathMeshes.forEach(mesh => scene.remove(mesh));
+            currentPathMeshes = [];
+            
+            // Fetch current data
+            fetch('cubic_search_visualization.json')
+                .then(response => response.json())
+                .then(data => {
+                    const pathData = data.search_paths[algorithmName];
+                    if (!pathData) return;
+                    
+                    // Create path visualization
+                    const pathMaterial = new THREE.LineBasicMaterial({ 
+                        color: 0x00ffff, 
+                        linewidth: 5,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    
+                    for (let i = 0; i < pathData.path.length - 1; i++) {
+                        const geometry = new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(...pathData.path[i]),
+                            new THREE.Vector3(...pathData.path[i + 1])
+                        ]);
+                        const line = new THREE.Line(geometry, pathMaterial);
+                        scene.add(line);
+                        currentPathMeshes.push(line);
+                    }
+                    
+                    // Update info
+                    document.getElementById('pathInfo').innerHTML = 
+                        `<strong>${algorithmName}</strong><br/>` +
+                        `Path Length: ${pathData.length} steps<br/>` +
+                        `Colors: ${pathData.colors.slice(0, 5).join(' → ')}${pathData.colors.length > 5 ? '...' : ''}`;
+                });
+        }
+        
+        function showAllNodes() {
+            currentPathMeshes.forEach(mesh => scene.remove(mesh));
+            currentPathMeshes = [];
+            document.getElementById('pathInfo').innerHTML = '<strong>All Nodes</strong><br/>5×5×5 Cubic Mesh<br/>125 nodes, 600 edges';
+        }
+        
+        function addControls() {
+            let mouseDown = false, mouseX = 0, mouseY = 0;
+            
+            document.addEventListener('mousedown', (event) => {
+                mouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            document.addEventListener('mouseup', () => mouseDown = false);
+            
+            document.addEventListener('mousemove', (event) => {
+                if (!mouseDown) return;
+                
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+                
+                // Rotate camera around center
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(camera.position.clone().sub(new THREE.Vector3(2, 2, 2)));
+                spherical.theta -= deltaX * 0.01;
+                spherical.phi += deltaY * 0.01;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                
+                camera.position.setFromSpherical(spherical).add(new THREE.Vector3(2, 2, 2));
+                camera.lookAt(2, 2, 2);
+                
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            document.addEventListener('wheel', (event) => {
+                const zoomSpeed = 0.1;
+                const direction = new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                
+                if (event.deltaY > 0) {
+                    camera.position.add(direction.multiplyScalar(-zoomSpeed));
+                } else {
+                    camera.position.add(direction.multiplyScalar(zoomSpeed));
+                }
+            });
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
