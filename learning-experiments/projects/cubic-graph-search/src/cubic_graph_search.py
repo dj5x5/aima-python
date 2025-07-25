@@ -6,7 +6,7 @@ A 3D cube mesh graph implementation using AIMA search algorithms with USDZ visua
 This project demonstrates graph search algorithms on a cubic lattice structure where
 each node is color-coded by spatial position for easy navigation and algorithm visualization.
 
-Author: [Your Name]
+Author: Jesse B.
 Course: Stanford AI Fundamentals
 Date: July 2025
 """
@@ -18,12 +18,13 @@ from typing import List, Tuple, Dict, Set, Optional
 import json
 from pathlib import Path
 
-# Add AIMA-python to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Simple fix: Add AIMA-python root to path
+aima_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+sys.path.insert(0, aima_root)
 
-# AIMA imports for search algorithms
-from search import Problem, breadth_first_search, depth_first_search, astar_search
-from search import best_first_graph_search, uniform_cost_search
+# Import AIMA modules
+from search import Problem, breadth_first_graph_search, depth_first_graph_search, astar_search
+from search import breadth_first_graph_search, uniform_cost_search
 from utils import PriorityQueue
 
 class CubicNode:
@@ -352,8 +353,8 @@ def main():
     
     # Test various AIMA search algorithms
     algorithms = {
-        'Breadth-First Search': breadth_first_search,
-        'Depth-First Search': depth_first_search,
+        'Breadth-First Search': breadth_first_graph_search,
+        'Depth-First Search': depth_first_graph_search,
         'Uniform Cost Search': uniform_cost_search,
         'A* Search': astar_search,
     }
